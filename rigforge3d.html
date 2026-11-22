@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>RIGFORGE 3D — Auto Rigging Studio</title>
+<style>
+  :root{
+    --bg:#12151b; --panel:#1a1f28; --panel2:#232a35; --border:#2c3542;
+    --text:#e8ecf1; --muted:#8a94a6; --accent:#00aaff; --accent2:#00e0a0;
+    --danger:#ff5566; --warn:#ffb020;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
+    background:var(--bg);color:var(--text);font-size:13px;user-select:none}
+  #app{display:grid;grid-template-rows:48px 1fr 180px;grid-template-columns:240px 1fr 290px;
+    grid-template-areas:"top top top" "left view right" "tl tl tl";height:100vh}
+  @media(max-width:900px){
+    #app{grid-template-columns:1fr;grid-template-rows:44px 1fr 140px;
+      grid-template-areas:"top" "view" "tl"}
+    #leftpanel,#rightpanel{position:fixed;top:44px;bottom:140px;width:280px;z-index:50;
+      transition:transform .2s;box-shadow:0 0 30px #000a}
+    #leftpanel{left:0;transform:translateX(-100%)}
+    #rightpanel{right:0;transform:translateX(100%)}
+    #leftpanel.open{transform:translateX(0)}
+    #rightpanel.open{transform:translateX(0)}
+  }
+  /* TOP BAR */
+  #topbar{grid-area:top;background:var(--panel);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:6px;padding:0 10px}
+  #topbar .brand{font-weight:700;color:var(--accent);letter-spacing:.5px;margin-right:8px;
+    font-size:14px;white-space:nowrap}
+  #topbar .brand span{color:var(--text);font-weight:400}
+  .btn{background:var(--panel2);border:1px solid var(--border);color:var(--text);
+    padding:7px 11px;border-radius:6px;cursor:pointer;font-size:12px;
+    display:inline-flex;align-items:center;gap:5px;transition:all .15s;white-space:nowrap}
+  .btn:hover{background:#2c3542;border-color:#3c4757}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600}
+  .btn.primary:hover{background:#00c0ff}
+  .btn.success{background:var(--accent2);border-color:var(--accent2);color:#000;font-weight:600}
+  .btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .spacer{flex:1}
+  .mobile-toggle{display:none}
+  @media(max-width:900px){.mobile-toggle{display:inline-flex}}
+  /* PANELS */
+  #leftpanel{grid-area:left;background:var(--panel);border-right:1px solid var(--border);
+    display:flex;flex-direction:column;overflow:hidden}
+  #rightpanel{grid-area:right;background:var(--panel);border-left:1px solid var(--border);
+    display:flex;flex-direction:column;overflow:hidden}
+  .panel-title{padding:8px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.6px;
+    color:var(--muted);background:var(--panel2);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;justify-content:space-between}
+  .panel-body{flex:1;overflow-y:auto;padding:8px}
+  .panel-body::-webkit-scrollbar{width:6px}
+  .panel-body::-webkit-scrollbar-thumb{background:#3c4757;border-radius:3px}
+  .section{margin-bottom:12px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+  .section-h{padding:6px 10px;background:var(--panel2);font-size:11px;color:var(--accent);
+    text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .section-b{padding:8px 10px;display:flex;flex-direction:column;gap:6px}
+  .row{display:flex;gap:6px;align-items:center}
+  .row label{flex:0 0 80px;font-size:11px;color:var(--muted)}
+  .row input,.row select{flex:1;background:var(--bg);border:1px solid var(--border);
+    color:var(--text);padding:5px 8px;border-radius:4px;font-size:12px;min-width:0}
+  .row input[type=range]{padding:0}
+  .stat{display:flex;justify-content:space-between;font-size:11px;padding:3px 0;
+    border-bottom:1px solid #ffffff08}
+  .stat span:last-child{color:var(--accent)}
+  /* VIEWPORT */
+  #viewport{grid-area:view;position:relative;background:#0a0d12;overflow:hidden}
+  #viewport canvas{display:block;width:100%;height:100%}
+  #overlay{position:absolute;top:8px;left:8px;display:flex;gap:6px;pointer-events:none}
+  #overlay>*{pointer-events:auto}
+  #fps{position:absolute;top:8px;right:8px;background:#000a;padding:3px 8px;border-radius:4px;
+    font-family:monospace;font-size:11px;color:var(--accent2)}
+  #modetabs{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+    display:flex;background:#000c;border:1px solid var(--border);border-radius:8px;padding:3px;gap:2px}
+  #modetabs .tab{padding:6px 14px;font-size:11px;border-radius:6px;cursor:pointer;color:var(--muted)}
+  #modetabs .tab.active{background:var(--accent);color:#000;font-weight:600}
+  .hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;
+    color:var(--muted);pointer-events:none;font-size:12px;line-height:1.6}
+  /* TIMELINE */
+  #timeline{grid-area:tl;background:var(--panel);border-top:1px solid var(--border);
+    display:flex;flex-direction:column;overflow:hidden}
+  .tl-controls{padding:5px 10px;display:flex;gap:6px;align-items:center;
+    border-bottom:1px solid var(--border);background:var(--panel2);flex-wrap:wrap}
+  .tl-track{flex:1;overflow:auto;position:relative;padding:4px 10px;background:#0f131a}
+  .tl-ruler{height:18px;position:relative;font-size:10px;color:var(--muted);
+    border-bottom:1px solid var(--border);margin-bottom:2px}
+  .tl-tick{position:absolute;top:0;height:100%;border-left:1px solid #ffffff10;padding-left:3px}
+  .tl-keys{position:relative;height:22px;background:#1a2030;border-radius:4px;margin:2px 0;
+    border:1px solid var(--border)}
+  .tl-kf{position:absolute;top:2px;width:8px;height:16px;background:var(--accent);
+    border-radius:2px;cursor:pointer;transform:translateX(-50%)}
+  .tl-kf.active{background:var(--accent2);box-shadow:0 0 6px var(--accent2)}
+  .tl-playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--danger);pointer-events:none}
+  /* HIERARCHY */
+  .tree-item{padding:4px 8px;font-size:12px;cursor:pointer;border-radius:4px;
+    display:flex;align-items:center;gap:6px}
+  .tree-item:hover{background:#ffffff08}
+  .tree-item.selected{background:var(--accent);color:#000}
+  .tree-item.bone{color:var(--accent2)}
+  .tree-item.mesh{color:#b8c0d0}
+  .empty{color:var(--muted);text-align:center;padding:20px;font-size:11px}
+  /* NOTIFICATIONS */
+  #toast{position:fixed;bottom:200px;left:50%;transform:translateX(-50%);
+    background:#000e;color:#fff;padding:10px 20px;border-radius:8px;font-size:12px;
+    opacity:0;transition:opacity .3s;pointer-events:none;z-index:999;border-left:3px solid var(--accent)}
+  #toast.show{opacity:1}
+  #toast.error{border-color:var(--danger)}
+  #toast.warn{border-color:var(--warn)}
+  /* LOADER */
+  #loader{position:fixed;inset:0;background:#000a;display:none;align-items:center;
+    justify-content:center;flex-direction:column;gap:12px;z-index:500}
+  #loader.show{display:flex}
+  .spinner{width:32px;height:32px;border:3px solid #333;border-top-color:var(--accent);
+    border-radius:50%;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .confidence{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;
+    font-weight:600;text-transform:uppercase}
+  .confidence.high{background:#0a4;color:#fff}
+  .confidence.medium{background:#a70;color:#fff}
+  .confidence.low{background:#a33;color:#fff}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="topbar">
+    <button class="mobile-toggle btn" onclick="document.getElementById('leftpanel').classList.toggle('open')">☰</button>
+    <div class="brand">RIGFORGE<span>3D</span></div>
+    <button class="btn" id="btnImport">📁 Importar</button>
+    <button class="btn" id="btnSave" disabled>💾 Salvar</button>
+    <button class="btn" id="btnUndo" disabled>↶</button>
+    <button class="btn" id="btnRedo" disabled>↷</button>
+    <div class="spacer"></div>
+    <span id="modeIndicator" style="font-size:11px;color:var(--muted);margin-right:8px">—</span>
+    <button class="btn primary" id="btnExport" disabled>⬇ Exportar GLB</button>
+    <button class="mobile-toggle btn" onclick="document.getElementById('rightpanel').classList.toggle('open')">⚙</button>
+  </header>
+
+  <aside id="leftpanel">
+    <div class="panel-title">Hierarquia</div>
+    <div class="panel-body" id="hierarchy">
+      <div class="empty">Nenhum modelo carregado</div>
+    </div>
+  </aside>
+
+  <main id="viewport">
+    <div id="overlay">
+      <button class="btn" onclick="App.cameraPreset('front')" title="Frontal">■</button>
+      <button class="btn" onclick="App.cameraPreset('side')" title="Lateral">▬</button>
+      <button class="btn" onclick="App.cameraPreset('top')" title="Superior">▲</button>
+      <button class="btn" onclick="App.cameraPreset('persp')" title="Perspectiva">◈</button>
+      <button class="btn" onclick="App.toggleWireframe()" title="Wireframe">◇</button>
+    </div>
+    <div id="fps">-- FPS</div>
+    <div id="modetabs">
+      <div class="tab active" data-mode="auto">AUTO RIG</div>
+      <div class="tab" data-mode="rig">RIG EDITOR</div>
+      <div class="tab" data-mode="animate">ANIMATION</div>
+    </div>
+    <div class="hint" id="hint">Importe um modelo GLB para começar<br><small>Arraste e solte ou clique em Importar</small></div>
+  </main>
+
+  <aside id="rightpanel">
+    <div class="panel-title">Propriedades</div>
+    <div class="panel-body" id="properties">
+      <div class="section">
+        <div class="section-h">Análise do Modelo</div>
+        <div class="section-b" id="modelStats">
+          <div class="empty">Aguardando importação</div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-h">Perfil de Rigging</div>
+        <div class="section-b">
+          <div class="row">
+            <label>Perfil</label>
+            <select id="profileSelect">
+              <option value="humanoid">Humanoide</option>
+              <option value="stylized">Estilizado</option>
+              <option value="quadruped" disabled>Quadrúpede (breve)</option>
+              <option value="mech" disabled>Mecânico (breve)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-h">Auto Rigging</div>
+        <div class="section-b">
+          <button class="btn" id="btnAnalyze" disabled>🔍 Detectar Articulações</button>
+          <button class="btn primary" id="btnGenerate" disabled>⚡ Gerar Esqueleto</button>
+          <button class="btn success" id="btnTest" disabled>▶ Testar Movimento</button>
+        </div>
+      </div>
+      <div class="section">
+        <div class="section-h">Skinning</div>
+        <div class="section-b">
+          <div class="row">
+            <label>Influências</label>
+            <input type="range" id="influenceSlider" min="1" max="4" value="4">
+            <span id="influenceVal">4</span>
+          </div>
+          <div class="row">
+            <label>Falloff</label>
+            <input type="range" id="falloffSlider" min="2" max="8" value="4" step="0.5">
+            <span id="falloffVal">4.0</span>
+          </div>
+          <button class="btn" id="btnReSkin" disabled>🔄 Recalcular Pesos</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <footer id="timeline">
+    <div class="tl-controls">
+      <button class="btn" id="btnPlay" disabled>▶</button>
+      <button class="btn" id="btnStop" disabled>■</button>
+      <button class="btn" id="btnAddKey" disabled>◆ Keyframe</button>
+      <button class="btn" id="btnNewClip" disabled>+ Clip</button>
+      <select id="clipSelect" style="background:var(--bg);border:1px solid var(--border);
+        color:var(--text);padding:5px 8px;border-radius:4px;font-size:12px">
+        <option>Sem clips</option>
+      </select>
+      <span style="font-size:11px;color:var(--muted)">FPS</span>
+      <input type="number" id="fpsInput" value="30" min="1" max="120"
+        style="width:50px;background:var(--bg);border:1px solid var(--border);
+        color:var(--text);padding:4px;border-radius:4px;font-size:12px">
+      <span id="timeDisplay" style="font-family:monospace;font-size:11px;color:var(--accent);margin-left:auto">
+        0.00s / 2.00s
+      </span>
+    </div>
+    <div class="tl-track" id="tlTrack">
+      <div class="tl-ruler" id="tlRuler"></div>
+      <div class="tl-keys" id="tlKeys"></div>
+    </div>
+  </footer>
+</div>
+
+<div id="toast"></div>
+<div id="loader"><div class="spinner"></div><div id="loaderText">Processando...</div></div>
+<input type="file" id="fileInput" accept=".glb,.gltf,.obj,.fbx" style="display:none">
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+
+// ═══════════════════════════════════════════════════════════════════════
+// 1. GLOBAL STATE
+// ═══════════════════════════════════════════════════════════════════════
+const State = {
+  scene: null, camera: null, renderer: null, controls: null,
+  modelRoot: null,           // Group contendo meshes com transform baked
+  meshes: [],                // Array de THREE.Mesh originais (world space)
+  skeleton: null,            // THREE.Skeleton
+  bones: [],                 // Array de THREE.Bone
+  boneHelper: null,          // SkeletonHelper
+  skinnedMeshes: [],         // Array de THREE.SkinnedMesh
+  joints: null,              // { hips, spine, ... }
+  analysis: null,            // resultado da detecção (confiança, etc)
+  mode: 'auto',
+  wireframe: false,
+  // Animação
+  clips: [],                 // Array<AnimationClipData>
+  activeClip: null,
+  isPlaying: false,
+  currentTime: 0,
+  fps: 30,
+  // Undo/Redo
+  history: [], historyIdx: -1,
+  // FPS
+  frameCount: 0, fpsTime: 0,
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// 2. SCENE SETUP
+// ═══════════════════════════════════════════════════════════════════════
+function initScene() {
+  const vp = document.getElementById('viewport');
+  State.scene = new THREE.Scene();
+  State.scene.background = new THREE.Color(0x0a0d12);
+
+  State.camera = new THREE.PerspectiveCamera(50, vp.clientWidth/vp.clientHeight, 0.01, 1000);
+  State.camera.position.set(2.5, 2, 3.5);
+
+  State.renderer = new THREE.WebGLRenderer({ antialias:true, preserveDrawingBuffer:true });
+  State.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  State.renderer.shadowMap.enabled = true;
+  State.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  State.renderer.outputColorSpace = THREE.SRGBColorSpace;
+  State.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  vp.appendChild(State.renderer.domElement);
+
+  State.controls = new OrbitControls(State.camera, State.renderer.domElement);
+  State.controls.enableDamping = true;
+  State.controls.dampingFactor = 0.08;
+  State.controls.target.set(0, 1, 0);
+  State.controls.minDistance = 0.5;
+  State.controls.maxDistance = 30;
+
+  // Lights
+  State.scene.add(new THREE.HemisphereLight(0xffffff, 0x444466, 1.5));
+  const key = new THREE.DirectionalLight(0xffffff, 2.5);
+  key.position.set(4, 6, 5); key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.camera.left = -4; key.shadow.camera.right = 4;
+  key.shadow.camera.top = 4; key.shadow.camera.bottom = -4;
+  key.shadow.bias = -0.0005;
+  State.scene.add(key);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.9);
+  fill.position.set(-5, 3, -4); State.scene.add(fill);
+  const rim = new THREE.DirectionalLight(0x00aaff, 0.6);
+  rim.position.set(0, 2, -6); State.scene.add(rim);
+
+  // Grid + axes
+  const grid = new THREE.GridHelper(20, 20, 0x2c3542, 0x1a1f28);
+  State.scene.add(grid);
+  const axes = new THREE.AxesHelper(1);
+  axes.position.y = 0.001;
+  State.scene.add(axes);
+
+  // Resize
+  new ResizeObserver(() => {
+    const w = vp.clientWidth, h = vp.clientHeight;
+    State.camera.aspect = w/h; State.camera.updateProjectionMatrix();
+    State.renderer.setSize(w, h);
+  }).observe(vp);
+  State.renderer.setSize(vp.clientWidth, vp.clientHeight);
+
+  // Loop
+  let last = performance.now();
+  function loop(now) {
+    requestAnimationFrame(loop);
+    const dt = Math.min((now - last)/1000, 0.1); last = now;
+    State.controls.update();
+    if (State.isPlaying) tickAnimation(dt);
+    State.renderer.render(State.scene, State.camera);
+    // FPS
+    State.frameCount++; State.fpsTime += dt;
+    if (State.fpsTime > 0.5) {
+      document.getElementById('fps').textContent =
+        Math.round(State.frameCount / State.fpsTime) + ' FPS';
+      State.frameCount = 0; State.fpsTime = 0;
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 3. MODEL LOADING
+// ═══════════════════════════════════════════════════════════════════════
+async function loadModel(file) {
+  showLoader('Carregando ' + file.name + '...');
+  try {
+    const ext = file.name.split('.').pop().toLowerCase();
+    let gltf;
+    if (ext === 'glb' || ext === 'gltf') {
+      const buf = await file.arrayBuffer();
+      const loader = new GLTFLoader();
+      gltf = await new Promise((res, rej) => loader.parse(buf, '', res, rej));
+    } else if (ext === 'obj') {
+      const text = await file.text();
+      const root = new OBJLoader().parse(text);
+      gltf = { scene: root, animations: [] };
+    } else if (ext === 'fbx') {
+      const buf = await file.arrayBuffer();
+      const root = new FBXLoader().parse(buf, '');
+      gltf = { scene: root, animations: [] };
+    } else {
+      throw new Error('Formato não suportado: ' + ext);
+    }
+    await prepareModel(gltf);
+    toast('Modelo carregado: ' + file.name);
+  } catch (e) {
+    console.error(e);
+    toast('Erro ao carregar: ' + e.message, 'error');
+  } finally { hideLoader(); }
+}
+
+async function prepareModel(gltf) {
+  clearModel();
+
+  const originalRoot = gltf.scene;
+  originalRoot.updateMatrixWorld(true);
+
+  // Bake world transforms into geometry → tudo vira world space
+  const meshes = [];
+  originalRoot.traverse(obj => {
+    if (obj.isMesh && !obj.isSkinnedMesh) {
+      const geo = obj.geometry.clone();
+      geo.applyMatrix4(obj.matrixWorld);
+      if (!geo.attributes.normal) geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, obj.material);
+      mesh.name = obj.name || 'Mesh_' + meshes.length;
+      meshes.push(mesh);
+    }
+  });
+
+  if (meshes.length === 0) throw new Error('Nenhuma malha encontrada no arquivo');
+
+  // Container único
+  const container = new THREE.Group();
+  container.name = 'RIGFORGE_MODEL';
+  meshes.forEach(m => { m.castShadow = true; m.receiveShadow = true; container.add(m); });
+  State.scene.add(container);
+  State.modelRoot = container;
+  State.meshes = meshes;
+
+  // Bounds
+  const box = new THREE.Box3();
+  meshes.forEach(m => box.expandByObject(m));
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+
+  // Reposicionar container para centralizar na origem (visualização)
+  container.position.set(-center.x, -box.min.y, -center.z);
+  container.updateMatrixWorld(true);
+
+  // Animações incorporadas (só GLB/GLTF)
+  if (gltf.animations && gltf.animations.length) {
+    for (const clip of gltf.animations) {
+      const cd = new ClipData(clip.name || 'Clip_' + State.clips.length);
+      // Não exporta incorporadas por padrão (não temos as bones do rig)
+      cd.external = true;
+      State.clips.push(cd);
+    }
+    toast(`Detectadas ${gltf.animations.length} animação(ões) incorporada(s)`);
+  }
+
+  // Câmera
+  const maxDim = Math.max(size.x, size.y, size.z);
+  State.camera.position.set(maxDim*1.5, size.y*0.9, maxDim*1.5);
+  State.controls.target.set(0, size.y*0.5, 0);
+
+  // Análise
+  State.analysis = analyzeMeshGroup(meshes, container);
+  State.joints = State.analysis.joints;
+
+  updateModelStats();
+  updateHierarchy();
+  refreshUIState();
+  document.getElementById('hint').style.display = 'none';
+}
+
+function clearModel() {
+  if (State.modelRoot) {
+    State.modelRoot.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach(m => {
+          for (const k in m) if (m[k]?.isTexture) m[k].dispose();
+          m.dispose();
+        });
+      }
+    });
+    State.scene.remove(State.modelRoot);
+  }
+  if (State.boneHelper) { State.scene.remove(State.boneHelper); State.boneHelper = null; }
+  State.modelRoot = null; State.meshes = []; State.skinnedMeshes = [];
+  State.skeleton = null; State.bones = []; State.joints = null; State.analysis = null;
+  State.clips = []; State.activeClip = null; State.currentTime = 0; State.isPlaying = false;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 4. GEOMETRY ANALYSIS — JOINT DETECTION
+// ═══════════════════════════════════════════════════════════════════════
+function analyzeMeshGroup(meshes, container) {
+  // Bounds em world space
+  const box = new THREE.Box3();
+  meshes.forEach(m => box.expandByObject(m));
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const min = box.min.clone();
+
+  const height = size.y;
+  const width = size.x;
+  const depth = size.z;
+
+  // Perfil de aspecto: humanoide tem altura >> largura
+  const aspect = height / Math.max(width, 0.01);
+
+  // Amostragem de vértices em world space para refinar
+  const samples = [];
+  meshes.forEach(m => {
+    const pos = m.geometry.attributes.position;
+    const stride = Math.max(1, Math.floor(pos.count / 5000)); // amostra até 5000 pts
+    for (let i = 0; i < pos.count; i += stride) {
+      const v = new THREE.Vector3().fromBufferAttribute(pos, i);
+      v.applyMatrix4(m.matrixWorld);
+      samples.push(v);
+    }
+  });
+
+  // Y positions (proporções humanoides padrão)
+  const baseY = min.y;
+  const H = height;
+  const y = {
+    toe:   baseY + H * 0.02,
+    ankle: baseY + H * 0.06,
+    knee:  baseY + H * 0.30,
+    hip:   baseY + H * 0.50,
+    spine: baseY + H * 0.58,
+    chest: baseY + H * 0.70,
+    neck:  baseY + H * 0.82,
+    head:  baseY + H * 0.88,
+    headTop: baseY + H * 1.0,
+    shoulder: baseY + H * 0.80,
+    elbow: baseY + H * 0.63,
+    wrist: baseY + H * 0.48,
+  };
+
+  // Detectar larguras em faixas Y
+  function scanBandX(yMin, yMax) {
+    let posX = [], negX = [];
+    const cx = center.x;
+    for (const v of samples) {
+      if (v.y >= yMin && v.y <= yMax) {
+        const dx = v.x - cx;
+        if (dx > 0) posX.push(dx); else negX.push(-dx);
+      }
+    }
+    const getW = arr => arr.length ? percentile(arr, 0.95) : 0;
+    return { right: getW(posX), left: getW(negX) };
+  }
+  function percentile(arr, p) {
+    const sorted = arr.slice().sort((a,b)=>a-b);
+    return sorted[Math.floor(sorted.length * p)] || 0;
+  }
+
+  const shoulderBand = scanBandX(y.shoulder - H*0.03, y.shoulder + H*0.03);
+  const hipBand      = scanBandX(y.hip - H*0.03, y.hip + H*0.03);
+  const handBand     = scanBandX(y.wrist - H*0.05, y.wrist + H*0.05);
+
+  const shoulderW = Math.max(shoulderBand.right, shoulderBand.left, H*0.15);
+  const hipW = Math.max(hipBand.right, hipBand.left, H*0.10);
+  const armReach = Math.max(handBand.right, handBand.left, shoulderW * 1.6);
+
+  // Confiança
+  let confidence = 'high';
+  const issues = [];
+  if (aspect < 1.5) { confidence = 'medium'; issues.push('Proporção incomum (não vertical)'); }
+  if (aspect < 0.8) { confidence = 'low'; issues.push('Modelo parece não estar em pé'); }
+  if (H < 0.1) { confidence = 'low'; issues.push('Modelo muito pequeno'); }
+  if (samples.length < 100) { confidence = 'low'; issues.push('Geometria insuficiente'); }
+
+  // Joints em world space (com o container deslocado)
+  const cx = center.x, cz = center.z;
+  const joints = {};
+
+  // Coluna
+  joints.hips  = new THREE.Vector3(cx, y.hip, cz);
+  joints.spine = new THREE.Vector3(cx, y.spine, cz);
+  joints.chest = new THREE.Vector3(cx, y.chest, cz);
+  joints.neck  = new THREE.Vector3(cx, y.neck, cz);
+  joints.head  = new THREE.Vector3(cx, y.head + H*0.04, cz);
+
+  // Braços (T-pose aproximado)
+  const shoulderOffset = shoulderW * 0.55;
+  const elbowOffset = shoulderW * 1.15;
+  const wristOffset = armReach * 0.9;
+
+  joints.leftShoulder  = new THREE.Vector3(cx + shoulderW*0.15, y.shoulder, cz);
+  joints.leftUpperArm  = new THREE.Vector3(cx + shoulderOffset, y.shoulder, cz);
+  joints.leftLowerArm  = new THREE.Vector3(cx + elbowOffset, y.elbow, cz);
+  joints.leftHand      = new THREE.Vector3(cx + wristOffset, y.wrist, cz);
+
+  joints.rightShoulder = new THREE.Vector3(cx - shoulderW*0.15, y.shoulder, cz);
+  joints.rightUpperArm = new THREE.Vector3(cx - shoulderOffset, y.shoulder, cz);
+  joints.rightLowerArm = new THREE.Vector3(cx - elbowOffset, y.elbow, cz);
+  joints.rightHand     = new THREE.Vector3(cx - wristOffset, y.wrist, cz);
+
+  // Pernas
+  const legOffset = hipW * 0.45;
+  joints.leftUpperLeg = new THREE.Vector3(cx + legOffset, y.hip, cz);
+  joints.leftLowerLeg = new THREE.Vector3(cx + legOffset, y.knee, cz);
+  joints.leftFoot     = new THREE.Vector3(cx + legOffset, y.ankle, cz);
+  joints.leftToes     = new THREE.Vector3(cx + legOffset, y.toe, cz + depth*0.08);
+
+  joints.rightUpperLeg = new THREE.Vector3(cx - legOffset, y.hip, cz);
+  joints.rightLowerLeg = new THREE.Vector3(cx - legOffset, y.knee, cz);
+  joints.rightFoot     = new THREE.Vector3(cx - legOffset, y.ankle, cz);
+  joints.rightToes     = new THREE.Vector3(cx - legOffset, y.toe, cz + depth*0.08);
+
+  return {
+    joints, confidence, issues,
+    stats: { height, width, depth, aspect, sampleCount: samples.length },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 5. SKELETON GENERATION
+// ═══════════════════════════════════════════════════════════════════════
+function buildSkeleton(joints) {
+  // Hierarquia de bones — cada bone é criado com posição LOCAL relativa ao pai
+  const bones = {};
+  function mkBone(name, worldPos, parentBone) {
+    const b = new THREE.Bone();
+    b.name = name;
+    if (parentBone) {
+      parentBone.add(b);
+      // posição local = worldPos - parentWorldPos (considerando só translação, sem rotação)
+      const parentWorld = new THREE.Vector3();
+      parentBone.getWorldPosition(parentWorld);
+      b.position.copy(worldPos.clone().sub(parentWorld));
+    } else {
+      b.position.copy(worldPos);
+    }
+    bones[name] = b;
+    return b;
+  }
+
+  const root = mkBone('Root', new THREE.Vector3(0, joints.hips.y, joints.hips.z), null);
+  mkBone('Hips', joints.hips, root);
+  mkBone('Spine', joints.spine, bones.Hips);
+  mkBone('Chest', joints.chest, bones.Spine);
+  mkBone('Neck', joints.neck, bones.Chest);
+  mkBone('Head', joints.head, bones.Neck);
+
+  // Ombros
+  mkBone('LeftShoulder', joints.leftShoulder, bones.Chest);
+  mkBone('LeftUpperArm', joints.leftUpperArm, bones.LeftShoulder);
+  mkBone('LeftLowerArm', joints.leftLowerArm, bones.LeftUpperArm);
+  mkBone('LeftHand', joints.leftHand, bones.LeftLowerArm);
+
+  mkBone('RightShoulder', joints.rightShoulder, bones.Chest);
+  mkBone('RightUpperArm', joints.rightUpperArm, bones.RightShoulder);
+  mkBone('RightLowerArm', joints.rightLowerArm, bones.RightUpperArm);
+  mkBone('RightHand', joints.rightHand, bones.RightLowerArm);
+
+  // Pernas
+  mkBone('LeftUpperLeg', joints.leftUpperLeg, bones.Hips);
+  mkBone('LeftLowerLeg', joints.leftLowerLeg, bones.LeftUpperLeg);
+  mkBone('LeftFoot', joints.leftFoot, bones.LeftLowerLeg);
+  mkBone('LeftToes', joints.leftToes, bones.LeftFoot);
+
+  mkBone('RightUpperLeg', joints.rightUpperLeg, bones.Hips);
+  mkBone('RightLowerLeg', joints.rightLowerLeg, bones.RightUpperLeg);
+  mkBone('RightFoot', joints.rightFoot, bones.RightLowerLeg);
+  mkBone('RightToes', joints.rightToes, bones.RightFoot);
+
+  // Flat array ordered by hierarchy traversal
+  const boneList = [];
+  root.traverse(o => { if (o.isBone) boneList.push(o); });
+
+  return { root, bones, boneList };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 6. AUTO SKINNING — distance-to-segment weights
+// ═══════════════════════════════════════════════════════════════════════
+function pointSegmentDist(p, a, b) {
+  const ab = new THREE.Vector3().subVectors(b, a);
+  const ap = new THREE.Vector3().subVectors(p, a);
+  const denom = ab.lengthSq();
+  if (denom < 1e-8) return p.distanceTo(a);
+  const t = Math.max(0, Math.min(1, ap.dot(ab) / denom));
+  const c = new THREE.Vector3().copy(a).addScaledVector(ab, t);
+  return p.distanceTo(c);
+}
+
+function applySkinning(meshes, boneList, options = {}) {
+  const maxInf = options.maxInfluences ?? 4;
+  const falloff = options.falloff ?? 4;
+  const eps = 1e-4;
+
+  // Precompute segmentos (start,end) de cada bone em world space
+  const segments = boneList.map(bone => {
+    const start = new THREE.Vector3(); bone.getWorldPosition(start);
+    // Fim: usar filho bone mais próximo OU o próprio start
+    let end = start.clone();
+    const children = bone.children.filter(c => c.isBone);
+    if (children.length > 0) {
+      children[0].getWorldPosition(end);
+    }
+    return { start, end, idx: boneList.indexOf(bone) };
+  });
+
+  const skinnedMeshes = [];
+
+  for (const mesh of meshes) {
+    const geo = mesh.geometry.clone();
+    // Certifica que geo está em world space (já aplicado em prepareModel)
+    const posAttr = geo.attributes.position;
+    const vCount = posAttr.count;
+    const skinIndices = new Uint16Array(vCount * 4);
+    const skinWeights = new Float32Array(vCount * 4);
+
+    const v = new THREE.Vector3();
+    const distArr = new Array(segments.length);
+
+    for (let i = 0; i < vCount; i++) {
+      v.fromBufferAttribute(posAttr, i);
+      // world (já está em world space)
+
+      for (let s = 0; s < segments.length; s++) {
+        distArr[s] = pointSegmentDist(v, segments[s].start, segments[s].end);
+      }
+
+      // pegar maxInf mais próximos
+      const idxs = Array.from({length: distArr.length}, (_, k) => k)
+        .sort((a,b) => distArr[a] - distArr[b])
+        .slice(0, maxInf);
+
+      // peso 1/(d+eps)^falloff
+      let total = 0;
+      const w = idxs.map(k => {
+        const ww = 1 / Math.pow(distArr[k] + eps, falloff);
+        total += ww; return ww;
+      });
+
+      // limpar
+      for (let j = 0; j < 4; j++) {
+        skinIndices[i*4+j] = 0;
+        skinWeights[i*4+j] = 0;
+      }
+      for (let j = 0; j < idxs.length; j++) {
+        skinIndices[i*4+j] = segments[idxs[j]].idx;
+        skinWeights[i*4+j] = w[j] / total;
+      }
+    }
+
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+    geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+
+    const sm = new THREE.SkinnedMesh(geo, mesh.material);
+    sm.name = mesh.name;
+    sm.castShadow = true;
+    sm.receiveShadow = true;
+    skinnedMeshes.push(sm);
+  }
+
+  return skinnedMeshes;
+}
+
+function commitRig(boneList, skinnedMeshes) {
+  // Cria skeleton
+  const skeleton = new THREE.Skeleton(boneList);
+
+  // Container novo
+  const rigGroup = new THREE.Group();
+  rigGroup.name = 'RIGFORGE_RIG';
+  rigGroup.position.copy(State.modelRoot.position); // mesma posição que os meshes antigos
+
+  // Adiciona root bone
+  const rootBone = boneList[0];
+  rigGroup.add(rootBone);
+
+  // Adiciona meshes skinned
+  skinnedMeshes.forEach(sm => rigGroup.add(sm));
+
+  // Bind (precisa ser depois que tudo está na cena para world matrices corretas)
+  State.scene.add(rigGroup);
+  rigGroup.updateMatrixWorld(true);
+
+  skinnedMeshes.forEach(sm => {
+    sm.bind(skeleton, sm.matrixWorld);
+  });
+
+  // Remove model antigo (meshes estáticos)
+  if (State.modelRoot) State.scene.remove(State.modelRoot);
+
+  // Guarda estado
+  State.skeleton = skeleton;
+  State.bones = boneList;
+  State.skinnedMeshes = skinnedMeshes;
+  State.modelRoot = rigGroup;
+
+  // Helper visual
+  if (State.boneHelper) State.scene.remove(State.boneHelper);
+  State.boneHelper = new THREE.SkeletonHelper(rigGroup);
+  State.boneHelper.material.linewidth = 2;
+  State.boneHelper.material.color = new THREE.Color(0x00e0a0);
+  State.scene.add(State.boneHelper);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 7. ANIMATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+class ClipData {
+  constructor(name, fps = 30, duration = 2) {
+    this.name = name;
+    this.fps = fps;
+    this.duration = duration;   // segundos
+    this.keyframes = [];        // [{time, poses: Map<boneName, {q, p}>}]
+    this.external = false;
+  }
+  addKeyframe(time, boneList) {
+    const poses = new Map();
+    boneList.forEach(b => {
+      poses.set(b.name, {
+        q: b.quaternion.clone(),
+        p: b.position.clone(),
+      });
+    });
+    // Substitui keyframe no mesmo tempo
+    this.keyframes = this.keyframes.filter(k => Math.abs(k.time - time) > 1e-4);
+    this.keyframes.push({ time, poses });
+    this.keyframes.sort((a,b) => a.time - b.time);
+  }
+  removeKeyframe(time) {
+    this.keyframes = this.keyframes.filter(k => Math.abs(k.time - time) > 1e-4);
+  }
+  evaluate(time, boneList) {
+    if (this.keyframes.length === 0) return;
+    const t = Math.max(0, Math.min(this.duration, time));
+    let k0 = this.keyframes[0], k1 = this.keyframes[this.keyframes.length-1];
+    if (t <= k0.time) { k1 = k0; }
+    else if (t >= k1.time) { k0 = k1; }
+    else {
+      for (let i = 0; i < this.keyframes.length-1; i++) {
+        if (t >= this.keyframes[i].time && t <= this.keyframes[i+1].time) {
+          k0 = this.keyframes[i]; k1 = this.keyframes[i+1]; break;
+        }
+      }
+    }
+    const dt = k1.time - k0.time;
+    const alpha = dt > 1e-6 ? (t - k0.time) / dt : 0;
+    boneList.forEach(bone => {
+      const p0 = k0.poses.get(bone.name);
+      const p1 = k1.poses.get(bone.name);
+      if (p0 && p1) {
+        bone.quaternion.slerpQuaternions(p0.q, p1.q, alpha);
+        bone.position.lerpVectors(p0.p, p1.p, alpha);
+      }
+    });
+  }
+  toThreeClip() {
+    if (this.keyframes.length === 0) return null;
+    const times = this.keyframes.map(k => k.time);
+    const boneNames = new Set();
+    this.keyframes.forEach(kf => kf.poses.forEach((v, k) => boneNames.add(k)));
+
+    const tracks = [];
+    for (const boneName of boneNames) {
+      // Quaternion track
+      const qValues = [];
+      for (const kf of this.keyframes) {
+        const p = kf.poses.get(boneName);
+        if (p) qValues.push(p.q.x, p.q.y, p.q.z, p.q.w);
+        else qValues.push(0,0,0,1);
+      }
+      tracks.push(new THREE.QuaternionKeyframeTrack(
+        `${boneName}.quaternion`, times, qValues
+      ));
+    }
+    const dur = Math.max(this.duration, times[times.length-1] || 0);
+    return new THREE.AnimationClip(this.name, dur, tracks);
+  }
+}
+
+function tickAnimation(dt) {
+  const clip = State.activeClip;
+  if (!clip) return;
+  State.currentTime += dt;
+  if (State.currentTime > clip.duration) {
+    State.currentTime = 0;
+  }
+  if (!clip.external && State.bones.length) {
+    clip.evaluate(State.currentTime, State.bones);
+  }
+  updateTimelineUI();
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 8. EXPORT GLB
+// ═══════════════════════════════════════════════════════════════════════
+async function exportGLB() {
+  if (!State.skinnedMeshes.length) { toast('Gere o rig antes de exportar', 'warn'); return; }
+  showLoader('Exportando GLB...');
+  try {
+    const sceneToExport = new THREE.Group();
+    // Reparent para export
+    const cloned = State.modelRoot.clone(true);
+    sceneToExport.add(cloned);
+    sceneToExport.updateMatrixWorld(true);
+
+    // Clips
+    const clips = State.clips
+      .filter(c => !c.external && c.keyframes.length > 0)
+      .map(c => c.toThreeClip())
+      .filter(c => c !== null);
+
+    const exporter = new GLTFExporter();
+    const result = await new Promise((res, rej) => {
+      exporter.parse(
+        sceneToExport,
+        res,
+        err => rej(err),
+        { binary: true, animations: clips, embedImages: true, onlyVisible: false }
+      );
+    });
+
+    // Download
+    const blob = new Blob([result], { type: 'model/gltf-binary' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'rigforge_character.glb';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast(`GLB exportado (${clips.length} animação(ões), ${State.bones.length} ossos)`);
+  } catch (e) {
+    console.error(e);
+    toast('Erro na exportação: ' + e.message, 'error');
+  } finally { hideLoader(); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 9. UI HELPERS
+// ═══════════════════════════════════════════════════════════════════════
+function toast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + type;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = '', 3000);
+}
+function showLoader(txt) {
+  document.getElementById('loaderText').textContent = txt || 'Processando...';
+  document.getElementById('loader').classList.add('show');
+}
+function hideLoader() { document.getElementById('loader').classList.remove('show'); }
+
+function updateModelStats() {
+  const div = document.getElementById('modelStats');
+  if (!State.meshes.length) {
+    div.innerHTML = '<div class="empty">Aguardando importação</div>';
+    return;
+  }
+  let verts = 0, tris = 0;
+  State.meshes.forEach(m => {
+    verts += m.geometry.attributes.position.count;
+    const idx = m.geometry.index;
+    tris += idx ? idx.count/3 : m.geometry.attributes.position.count/3;
+  });
+  const a = State.analysis;
+  const confClass = a.confidence;
+  div.innerHTML = `
+    <div class="stat"><span>Objetos</span><span>${State.meshes.length}</span></div>
+    <div class="stat"><span>Vértices</span><span>${verts.toLocaleString()}</span></div>
+    <div class="stat"><span>Triângulos</span><span>${Math.round(tris).toLocaleString()}</span></div>
+    <div class="stat"><span>Altura</span><span>${a.stats.height.toFixed(2)} m</span></div>
+    <div class="stat"><span>Confiança</span>
+      <span class="confidence ${confClass}">${confClass.toUpperCase()}</span></div>
+    ${a.issues.length ? `<div style="font-size:10px;color:var(--warn);margin-top:6px">
+      ⚠ ${a.issues.join('; ')}</div>` : ''}
+  `;
+}
+
+function updateHierarchy() {
+  const div = document.getElementById('hierarchy');
+  if (!State.bones.length) {
+    if (!State.meshes.length) {
+      div.innerHTML = '<div class="empty">Nenhum modelo carregado</div>'; return;
+    }
+    div.innerHTML = '<div class="empty">Rig ainda não gerado</div>';
+    // Lista meshes
+    State.meshes.forEach(m => {
+      const d = document.createElement('div');
+      d.className = 'tree-item mesh';
+      d.textContent = '◆ ' + m.name;
+      div.appendChild(d);
+    });
+    return;
+  }
+  div.innerHTML = '';
+  State.bones.forEach(b => {
+    const d = document.createElement('div');
+    d.className = 'tree-item bone';
+    d.dataset.bone = b.name;
+    d.innerHTML = '● ' + b.name;
+    d.onclick = () => selectBone(b);
+    div.appendChild(d);
+  });
+}
+
+function selectBone(bone) {
+  document.querySelectorAll('.tree-item.selected').forEach(e => e.classList.remove('selected'));
+  const el = document.querySelector(`[data-bone="${bone.name}"]`);
+  if (el) el.classList.add('selected');
+}
+
+function refreshUIState() {
+  const has = State.meshes.length > 0;
+  const hasRig = State.bones.length > 0;
+  document.getElementById('btnAnalyze').disabled = !has;
+  document.getElementById('btnGenerate').disabled = !has;
+  document.getElementById('btnTest').disabled = !hasRig;
+  document.getElementById('btnReSkin').disabled = !hasRig;
+  document.getElementById('btnSave').disabled = !has;
+  document.getElementById('btnExport').disabled = !hasRig;
+  document.getElementById('btnPlay').disabled = !hasRig;
+  document.getElementById('btnStop').disabled = !hasRig;
+  document.getElementById('btnAddKey').disabled = !hasRig;
+  document.getElementById('btnNewClip').disabled = !hasRig;
+}
+
+// Timeline
+function renderTimeline() {
+  const ruler = document.getElementById('tlRuler');
+  const keys = document.getElementById('tlKeys');
+  const clip = State.activeClip;
+  const dur = clip ? clip.duration : 2;
+  const pxPerSec = 100;
+  ruler.style.width = keys.style.width = (dur * pxPerSec) + 'px';
+  ruler.innerHTML = '';
+  keys.innerHTML = '';
+  for (let s = 0; s <= dur; s += 0.5) {
+    const tick = document.createElement('div');
+    tick.className = 'tl-tick';
+    tick.style.left = (s * pxPerSec) + 'px';
+    tick.textContent = s + 's';
+    ruler.appendChild(tick);
+  }
+  if (clip) {
+    clip.keyframes.forEach(kf => {
+      const k = document.createElement('div');
+      k.className = 'tl-kf';
+      k.style.left = (kf.time * pxPerSec) + 'px';
+      k.title = kf.time.toFixed(2) + 's';
+      k.onclick = () => {
+        State.currentTime = kf.time;
+        clip.evaluate(kf.time, State.bones);
+        updateTimelineUI();
+      };
+      keys.appendChild(k);
+    });
+  }
+  updateTimelineUI();
+}
+
+function updateTimelineUI() {
+  const clip = State.activeClip;
+  const dur = clip ? clip.duration : 2;
+  document.getElementById('timeDisplay').textContent =
+    State.currentTime.toFixed(2) + 's / ' + dur.toFixed(2) + 's';
+  // playhead
+  const track = document.getElementById('tlTrack');
+  let ph = track.querySelector('.tl-playhead');
+  if (!ph) { ph = document.createElement('div'); ph.className = 'tl-playhead'; track.appendChild(ph); }
+  ph.style.left = (10 + State.currentTime * 100) + 'px';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 10. ACTIONS (BINDINGS)
+// ═══════════════════════════════════════════════════════════════════════
+const App = {
+  cameraPreset(preset) {
+    const box = new THREE.Box3();
+    State.meshes.forEach(m => box.expandByObject(m));
+    const size = box.getSize(new THREE.Vector3());
+    const c = box.getCenter(new THREE.Vector3());
+    const d = Math.max(size.x, size.y, size.z) * 2;
+    const t = State.controls.target;
+    const cams = {
+      front: [c.x, c.y, c.z + d],
+      back:  [c.x, c.y, c.z - d],
+      side:  [c.x + d, c.y, c.z],
+      top:   [c.x, c.y + d, c.z + 0.01],
+      persp: [c.x + d*0.7, c.y + size.y*0.4, c.z + d*0.7],
+    };
+    const p = cams[preset] || cams.persp;
+    State.camera.position.set(p[0], p[1], p[2]);
+    State.controls.target.set(c.x, c.y, c.z);
+  },
+  toggleWireframe() {
+    State.wireframe = !State.wireframe;
+    State.meshes.concat(State.skinnedMeshes).forEach(m => {
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      mats.forEach(mat => { mat.wireframe = State.wireframe; });
+    });
+  },
+  analyze() {
+    if (!State.meshes.length) return;
+    State.analysis = analyzeMeshGroup(State.meshes, State.modelRoot);
+    State.joints = State.analysis.joints;
+    updateModelStats();
+    // Visualizar markers
+    showJointMarkers(State.joints);
+    toast(`Detecção: ${State.analysis.confidence.toUpperCase()} — ${Object.keys(State.joints).length} articulações`);
+  },
+  generateRig() {
+    if (!State.joints) { this.analyze(); }
+    if (!State.joints) return;
+    showLoader('Gerando esqueleto e skinning...');
+    setTimeout(() => {
+      try {
+        const { boneList } = buildSkeleton(State.joints);
+        const maxInf = +document.getElementById('influenceSlider').value;
+        const falloff = +document.getElementById('falloffSlider').value;
+        const skinned = applySkinning(State.meshes, boneList, { maxInfluences: maxInf, falloff });
+        commitRig(boneList, skinned);
+        updateHierarchy();
+        refreshUIState();
+        toast(`Esqueleto gerado: ${boneList.length} ossos`);
+      } catch (e) {
+        console.error(e);
+        toast('Erro ao gerar rig: ' + e.message, 'error');
+      } finally { hideLoader(); }
+    }, 50);
+  },
+  reSkin() {
+    if (!State.bones.length) return;
+    showLoader('Recalculando pesos...');
+    setTimeout(() => {
+      try {
+        const maxInf = +document.getElementById('influenceSlider').value;
+        const falloff = +document.getElementById('falloffSlider').value;
+        // Remove old skinned meshes
+        const old = State.skinnedMeshes.slice();
+        old.forEach(sm => { if (sm.parent) sm.parent.remove(sm); sm.geometry.dispose(); });
+        // Recalculate from ORIGINAL geometries (kept as world-space meshes)
+        // Precisamos re-bake das posições — usamos current modelRoot que ainda tem os meshes estáticos?
+        // Não: após commitRig, meshes originais foram removidos. Precisamos de cache.
+        // Simplificação: reusa os atributos já aplicados pegando do skeleton e recalculando.
+        // Para MVP: reaplica com base nos meshes atuais (skinned)
+        const newSkinned = applySkinningFromSkinned(State.skinnedMeshes, State.bones, maxInf, falloff);
+        newSkinned.forEach(sm => State.modelRoot.add(sm));
+        newSkinned.forEach(sm => sm.bind(State.skeleton, sm.matrixWorld));
+        State.skinnedMeshes = newSkinned;
+        toast('Pesos recalculados');
+      } catch (e) { console.error(e); toast('Erro: ' + e.message, 'error'); }
+      finally { hideLoader(); }
+    }, 50);
+  },
+  testMovement() {
+    if (!State.bones.length) return;
+    const clips = ['Idle', 'Wave'];
+    if (!State.activeClip) {
+      const idle = generateProceduralIdle();
+      State.clips.push(idle);
+      State.activeClip = idle;
+      refreshClipSelect();
+    }
+    State.currentTime = 0;
+    State.isPlaying = true;
+    document.getElementById('btnPlay').textContent = '⏸';
+    toast('Reproduzindo animação de teste');
+  },
+  newClip() {
+    const name = prompt('Nome do clip:', 'Anim_' + (State.clips.length+1));
+    if (!name) return;
+    const c = new ClipData(name, State.fps, 2);
+    State.clips.push(c);
+    State.activeClip = c;
+    refreshClipSelect();
+    renderTimeline();
+    toast('Clip criado: ' + name);
+  },
+  addKeyframe() {
+    if (!State.activeClip) {
+      // cria um automaticamente
+      const c = new ClipData('Anim_1', State.fps, 2);
+      State.clips.push(c);
+      State.activeClip = c;
+      refreshClipSelect();
+    }
+    const c = State.activeClip;
+    c.addKeyframe(State.currentTime, State.bones);
+    renderTimeline();
+    toast('Keyframe @ ' + State.currentTime.toFixed(2) + 's');
+  },
+};
+
+// Helper: regen skinning from existing skinned meshes (works in MVP for "recalc")
+function applySkinningFromSkinned(skinnedMeshes, boneList, maxInf, falloff) {
+  // Reusa os meshes (mantém skinIndex/Weight) só reconstrói SkinnedMesh
+  // Para MVP realmente recalculamos usando a posição atual world
+  const eps = 1e-4;
+  const segments = boneList.map(bone => {
+    const start = new THREE.Vector3(); bone.getWorldPosition(start);
+    let end = start.clone();
+    const ch = bone.children.filter(c => c.isBone);
+    if (ch.length) ch[0].getWorldPosition(end);
+    return { start, end, idx: boneList.indexOf(bone) };
+  });
+
+  return skinnedMeshes.map(old => {
+    const geo = old.geometry.clone();
+    const posAttr = geo.attributes.position;
+    const vCount = posAttr.count;
+    const skinIndices = new Uint16Array(vCount*4);
+    const skinWeights = new Float32Array(vCount*4);
+    const v = new THREE.Vector3();
+    const d = new Array(segments.length);
+    for (let i = 0; i < vCount; i++) {
+      v.fromBufferAttribute(posAttr, i).applyMatrix4(old.matrixWorld);
+      for (let s = 0; s < segments.length; s++)
+        d[s] = pointSegmentDist(v, segments[s].start, segments[s].end);
+      const idxs = Array.from({length: d.length}, (_,k)=>k)
+        .sort((a,b)=>d[a]-d[b]).slice(0, maxInf);
+      let total = 0; const w = idxs.map(k => { const ww = 1/Math.pow(d[k]+eps, falloff); total+=ww; return ww; });
+      for (let j=0;j<4;j++){ skinIndices[i*4+j]=0; skinWeights[i*4+j]=0; }
+      for (let j=0;j<idxs.length;j++){
+        skinIndices[i*4+j] = segments[idxs[j]].idx;
+        skinWeights[i*4+j] = w[j]/total;
+      }
+    }
+    geo.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skinIndices, 4));
+    geo.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skinWeights, 4));
+    const sm = new THREE.SkinnedMesh(geo, old.material);
+    sm.name = old.name;
+    sm.castShadow = sm.receiveShadow = true;
+    return sm;
+  });
+}
+
+function showJointMarkers(joints) {
+  // remove antigos
+  State.scene.children.filter(c => c.userData._jointMarker).forEach(c => State.scene.remove(c));
+  const geo = new THREE.SphereGeometry(0.02, 12, 8);
+  const mat = new THREE.MeshBasicMaterial({ color: 0x00e0a0, depthTest: false, transparent: true, opacity: 0.85 });
+  const offset = State.modelRoot.position;
+  for (const [name, pos] of Object.entries(joints)) {
+    const s = new THREE.Mesh(geo, mat);
+    s.position.copy(pos).add(offset);
+    s.userData._jointMarker = true;
+    s.renderOrder = 999;
+    State.scene.add(s);
+  }
+}
+
+function generateProceduralIdle() {
+  // Gera keyframes de "respiração" para testar
+  const c = new ClipData('Idle', State.fps, 2);
+  // 3 poses: 0s, 1s, 2s
+  const original = new Map();
+  State.bones.forEach(b => original.set(b.name, { q: b.quaternion.clone(), p: b.position.clone() }));
+
+  for (let t of [0, 1, 2]) {
+    State.bones.forEach(b => {
+      const orig = original.get(b.name);
+      b.quaternion.copy(orig.q);
+      b.position.copy(orig.p);
+      if (b.name === 'Spine' || b.name === 'Chest') {
+        const phase = t * Math.PI;
+        const angle = Math.sin(phase) * 0.02;
+        b.rotation.x += angle;
+      }
+      if (b.name === 'LeftUpperArm' || b.name === 'RightUpperArm') {
+        const sign = b.name.includes('Left') ? 1 : -1;
+        b.rotation.z += sign * Math.sin(t * Math.PI) * 0.03;
+      }
+    });
+    c.addKeyframe(t, State.bones);
+  }
+  // Reset
+  State.bones.forEach(b => {
+    const o = original.get(b.name);
+    b.quaternion.copy(o.q); b.position.copy(o.p);
+  });
+  return c;
+}
+
+function refreshClipSelect() {
+  const sel = document.getElementById('clipSelect');
+  sel.innerHTML = '';
+  if (!State.clips.length) {
+    sel.innerHTML = '<option>Sem clips</option>'; return;
+  }
+  State.clips.forEach((c, i) => {
+    const o = document.createElement('option');
+    o.textContent = c.name + (c.external ? ' (importada)' : '');
+    o.value = i;
+    sel.appendChild(o);
+  });
+  if (State.activeClip) {
+    const idx = State.clips.indexOf(State.activeClip);
+    if (idx >= 0) sel.value = idx;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 11. WIRING
+// ═══════════════════════════════════════════════════════════════════════
+function wireUI() {
+  document.getElementById('btnImport').onclick = () => document.getElementById('fileInput').click();
+  document.getElementById('fileInput').onchange = e => {
+    const f = e.target.files[0];
+    if (f) loadModel(f);
+    e.target.value = '';
+  };
+
+  // Drag&drop
+  document.body.addEventListener('dragover', e => { e.preventDefault(); });
+  document.body.addEventListener('drop', e => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (f) loadModel(f);
+  });
+
+  document.getElementById('btnAnalyze').onclick = () => App.analyze();
+  document.getElementById('btnGenerate').onclick = () => App.generateRig();
+  document.getElementById('btnReSkin').onclick = () => App.reSkin();
+  document.getElementById('btnTest').onclick = () => App.testMovement();
+  document.getElementById('btnExport').onclick = () => exportGLB();
+  document.getElementById('btnNewClip').onclick = () => App.newClip();
+  document.getElementById('btnAddKey').onclick = () => App.addKeyframe();
+
+  document.getElementById('influenceSlider').oninput = e => {
+    document.getElementById('influenceVal').textContent = e.target.value;
+  };
+  document.getElementById('falloffSlider').oninput = e => {
+    document.getElementById('falloffVal').textContent = (+e.target.value).toFixed(1);
+  };
+  document.getElementById('fpsInput').onchange = e => {
+    State.fps = Math.max(1, +e.target.value || 30);
+    if (State.activeClip) State.activeClip.fps = State.fps;
+  };
+
+  const btnPlay = document.getElementById('btnPlay');
+  btnPlay.onclick = () => {
+    State.isPlaying = !State.isPlaying;
+    btnPlay.textContent = State.isPlaying ? '⏸' : '▶';
+  };
+  document.getElementById('btnStop').onclick = () => {
+    State.isPlaying = false; State.currentTime = 0;
+    btnPlay.textContent = '▶';
+    if (State.activeClip && !State.activeClip.external) State.activeClip.evaluate(0, State.bones);
+    updateTimelineUI();
+  };
+
+  document.getElementById('clipSelect').onchange = e => {
+    const c = State.clips[+e.target.value];
+    State.activeClip = c;
+    State.currentTime = 0;
+    renderTimeline();
+  };
+
+  // Mode tabs
+  document.querySelectorAll('#modetabs .tab').forEach(tab => {
+    tab.onclick = () => {
+      document.querySelectorAll('#modetabs .tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      State.mode = tab.dataset.mode;
+      document.getElementById('modeIndicator').textContent =
+        State.mode === 'auto' ? 'Modo: Auto Rig' :
+        State.mode === 'rig' ? 'Modo: Rig Editor' : 'Modo: Animation Studio';
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 12. BOOT
+// ═══════════════════════════════════════════════════════════════════════
+initScene();
+wireUI();
+renderTimeline();
+refreshUIState();
+window.App = App;
+
+// Testes de auto-validação no console:
+console.log('%cRIGFORGE 3D', 'color:#00aaff;font-weight:bold;font-size:16px');
+console.log('API pública: App.cameraPreset(), App.analyze(), App.generateRig(), exportGLB()');
+</script>
+</body>
+</html>
